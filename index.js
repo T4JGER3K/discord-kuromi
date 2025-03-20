@@ -154,7 +154,38 @@ client.on('messageCreate', async message => {
 
         message.channel.send({ embeds: [listEmbed] });
     }
+
+    // Nowa komenda ?taryfikator
+    if (message.content.startsWith('?taryfikator')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
+
+        // Definicja taryfikatora kar: ile warnów = jaka kara
+        const tariffMapping = [
+            { warns: 1, punishment: 'Brak kary (tylko ostrzeżenie)' },
+            { warns: 3, punishment: 'Timeout na 1 dzień' },
+            { warns: 5, punishment: 'Kick' },
+            { warns: 7, punishment: 'Ban' }
+        ];
+
+        const tariffEmbed = new EmbedBuilder()
+            .setColor(0xFFA500) // Pomarańczowy kolor
+            .setTitle('Taryfikator kar')
+            .setDescription('Ile warnów = jaka kara')
+            .setFooter({ text: "© tajgerek" })
+            .setTimestamp();
+
+        tariffMapping.forEach(mapping => {
+            tariffEmbed.addFields({
+                name: `${mapping.warns} warnów`,
+                value: `${mapping.punishment}`,
+                inline: false
+            });
+        });
+
+        message.channel.send({ embeds: [tariffEmbed] });
+    }
 });
 
 client.login(process.env.TOKEN);
-
