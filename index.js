@@ -118,7 +118,6 @@ client.on('messageCreate', async message => {
         if (reasons.length > 0) {
             reasons.forEach((row, index) => {
                 let reasonText = row.reason || "Brak";
-                let date = new Date(row.date);
                 listEmbed.addFields({
                     name: `${index + 1} warn`,
                     value: `Data: <t:${Math.floor(row.date / 1000)}:D>\nPowód: ${reasonText}`,
@@ -157,16 +156,19 @@ client.on('messageCreate', async message => {
 
     // Nowa komenda ?taryfikator
     if (message.content.startsWith('?taryfikator')) {
-        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            return message.reply("Nie masz uprawnień do używania tej komendy.");
-        }
+        // Opcjonalnie można sprawdzić uprawnienia administratora lub innego uprawnienia
+        // if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        //     return message.reply("Nie masz uprawnień do używania tej komendy.");
+        // }
 
         // Definicja taryfikatora kar: ile warnów = jaka kara
         const tariffMapping = [
             { warns: 1, punishment: 'Brak kary (tylko ostrzeżenie)' },
-            { warns: 3, punishment: 'Timeout na 1 dzień' },
-            { warns: 5, punishment: 'Kick' },
-            { warns: 7, punishment: 'Ban' }
+            { warns: 2, punishment: 'Timeout na 1 godzinę' },
+            { warns: 3, punishment: 'Timeout na 12 godzin' },
+            { warns: 4, punishment: 'Timeout na 24 godziny' },
+            { warns: 5, punishment: 'Timeout na 1 tydzień' },
+            { warns: 6, punishment: 'Ban (do odwołania)' }
         ];
 
         const tariffEmbed = new EmbedBuilder()
