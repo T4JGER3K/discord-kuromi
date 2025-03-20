@@ -156,10 +156,10 @@ client.on('messageCreate', async message => {
 
     // Nowa komenda ?taryfikator
     if (message.content.startsWith('?taryfikator')) {
-        // Opcjonalnie można sprawdzić uprawnienia administratora lub innego uprawnienia
-        // if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-        //     return message.reply("Nie masz uprawnień do używania tej komendy.");
-        // }
+        
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+             return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
 
         // Definicja taryfikatora kar: ile warnów = jaka kara
         const tariffMapping = [
@@ -174,7 +174,6 @@ client.on('messageCreate', async message => {
         const tariffEmbed = new EmbedBuilder()
             .setColor(0xFFA500) // Pomarańczowy kolor
             .setTitle('Taryfikator kar')
-            .setDescription('Ile warnów = jaka kara')
             .setFooter({ text: "© tajgerek" })
             .setTimestamp();
 
