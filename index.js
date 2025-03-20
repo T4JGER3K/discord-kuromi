@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, ActivityType, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const Database = require('better-sqlite3');
 
-// Inicjalizacja bazy danych
+// Inicjalizacja bazy danych – plik warns.db jest trwały, więc dane pozostaną po restarcie bota
 const db = new Database('warns.db');
 db.prepare("CREATE TABLE IF NOT EXISTS warnings (userId TEXT PRIMARY KEY, count INTEGER)").run();
 db.prepare("CREATE TABLE IF NOT EXISTS reasons (userId TEXT, reason TEXT, date INTEGER)").run();
@@ -40,6 +40,25 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
+    // Komenda ?help – wyświetla listę dostępnych komend w embedzie
+    if (message.content.startsWith('?help')) {
+        const helpEmbed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('Lista komend')
+            .setDescription('Poniżej znajduje się spis dostępnych komend oraz ich opis:')
+            .setFooter({ text: "© tajgerek" })
+            .setTimestamp();
+
+        helpEmbed.addFields(
+            { name: '?warn @użytkownik [powód]', value: 'Nadaje warn użytkownikowi. Jeśli powód nie zostanie podany, używany jest "Brak powodu". W zależności od liczby warnów mogą być nakładane kary.', inline: false },
+            { name: '?warn list @użytkownik', value: 'Wyświetla listę warnów, powodów oraz timeoutów dla wskazanego użytkownika.', inline: false },
+            { name: '?taryfikator', value: 'Wyświetla taryfikator kar, czyli jaka kara przypada na daną liczbę warnów.', inline: false },
+            { name: '?help', value: 'Wyświetla tę pomoc.', inline: false }
+        );
+
+        return message.channel.send({ embeds: [helpEmbed] });
+    }
+
     // Komenda ?warn @nazwa powód
     if (message.content.startsWith('?warn') && !message.content.includes('list')) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
@@ -51,24 +70,24 @@ client.on('messageCreate', async message => {
 
         if (!user) return message.reply("Musisz oznaczyć użytkownika!");
 
-        const reason = args.slice(2).join(' ') || "Brak powodu";  // Jeżeli brak powodu, domyślnie "Brak powodu"
+        const reason = args.slice(2).join(' ') || "Brak powodu";  // Domyślny powód
 
-        // Pobranie liczby warnów
+        // Pobranie aktualnej liczby warnów
         let data = db.prepare("SELECT count FROM warnings WHERE userId = ?").get(user.id);
         let warns = data ? data.count : 0;
 
         warns++; // Dodajemy warn
 
-        // Zapis do bazy danych dla liczby warnów
+        // Zapis do bazy danych – aktualizacja liczby warnów
         db.prepare("INSERT INTO warnings (userId, count) VALUES (?, ?) ON CONFLICT(userId) DO UPDATE SET count = ?")
             .run(user.id, warns, warns);
 
-        // Zapis powodu do bazy danych
+        // Zapis powodu do bazy danych – każdy warn jest dodawany jako osobny rekord
         db.prepare("INSERT INTO reasons (userId, reason, date) VALUES (?, ?, ?)").run(user.id, reason, Date.now());
 
-        // Tworzenie embed dla ostrzeżenia
+        // Tworzenie embed z informacją o warnie
         const warnEmbed = new EmbedBuilder()
-            .setColor(0xFF0000) // Kolor czerwony
+            .setColor(0xFF0000)
             .setTitle(`Ostrzeżenie dla ${user.user.tag}`)
             .setDescription(`${user} otrzymał warna! Ma teraz ${warns} ${getWarnDeclension(warns)}.\nPowód: ${reason}`)
             .setFooter({ text: "© tajgerek" })
@@ -76,7 +95,7 @@ client.on('messageCreate', async message => {
 
         message.channel.send({ embeds: [warnEmbed] });
 
-        // W zależności od liczby warnów, nakładamy odpowiednią karę
+        // Nakładanie kar w zależności od liczby warnów
         if (warns === 2) {
             // Timeout na 1 godzinę
             try {
@@ -167,7 +186,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Komenda ?warn list
+    // Komenda ?warn list – pobiera dane z bazy, dzięki czemu dane pozostają po restarcie bota
     if (message.content.startsWith('?warn list')) {
         const args = message.content.split(' ');
         const user = message.mentions.members.first();
@@ -178,13 +197,13 @@ client.on('messageCreate', async message => {
         let data = db.prepare("SELECT count FROM warnings WHERE userId = ?").get(user.id);
         let warns = data ? data.count : 0;
 
-        // Pobranie wszystkich powodów dla tego użytkownika
+        // Pobranie wszystkich powodów z bazy
         const reasons = db.prepare("SELECT reason, date FROM reasons WHERE userId = ?").all(user.id);
 
         // Pobranie informacji o timeoutach
         const timeoutData = db.prepare("SELECT startDate, endDate FROM timeouts WHERE userId = ?").all(user.id);
 
-        // Tworzymy embed z informacjami o warnach
+        // Tworzymy embed z informacjami
         const listEmbed = new EmbedBuilder()
             .setColor(0xFF0000)
             .setTitle(`Lista warnów dla ${user.user.tag}`)
@@ -208,7 +227,6 @@ client.on('messageCreate', async message => {
             });
         }
 
-        // Jeśli użytkownik miał kiedykolwiek timeout
         if (timeoutData.length > 0) {
             timeoutData.forEach((timeout, index) => {
                 let startDate = new Date(timeout.startDate);
@@ -230,9 +248,8 @@ client.on('messageCreate', async message => {
         message.channel.send({ embeds: [listEmbed] });
     }
 
-    // Komenda ?taryfikator
+    // Komenda ?taryfikator – wyświetla taryfikator kar pobrany z bazy danych
     if (message.content.startsWith('?taryfikator')) {
-        // Definicja taryfikatora kar: ile warnów = jaka kara
         const tariffMapping = [
             { warns: 1, punishment: 'Brak kary (tylko ostrzeżenie)' },
             { warns: 2, punishment: 'Timeout na 1 godzinę' },
