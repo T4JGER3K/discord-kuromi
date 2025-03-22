@@ -262,7 +262,6 @@ client.on('messageCreate', async message => {
         const tariffEmbed = new EmbedBuilder()
             .setColor(0xFFA500)
             .setTitle('Taryfikator kar')
-            .setDescription('Ile warnów = jaka kara')
             .setFooter({ text: "© tajgerek" })
             .setTimestamp();
 
