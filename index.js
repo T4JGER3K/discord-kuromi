@@ -54,6 +54,8 @@ client.on('messageCreate', async message => {
             { name: '?warn list @użytkownik', value: 'Wyświetla listę warnów, powodów oraz timeoutów dla wskazanego użytkownika.', inline: false },
             { name: '?remove warn @użytkownik [liczba]', value: 'Odbiera warny użytkownikowi. Jeśli liczba nie zostanie podana, domyślnie odbiera 1 warn.', inline: false },
             { name: '?timeout @użytkownik <czas>', value: 'Nadaje timeout użytkownikowi. Przykład: ?timeout @nazwa 10s (10 sekund), 5m (5 minut), 2h (2 godziny).', inline: false },
+            { name: '?kick @użytkownik [powód]', value: 'Wyrzuca użytkownika z serwera z opcjonalnym podaniem powodu.', inline: false },
+            { name: '?ban @użytkownik [powód]', value: 'Banuje użytkownika z serwera z opcjonalnym podaniem powodu.', inline: false },
             { name: '?taryfikator', value: 'Wyświetla taryfikator kar, czyli jaka kara przypada na daną liczbę warnów.', inline: false },
             { name: '?help', value: 'Wyświetla tę pomoc.', inline: false }
         );
@@ -289,6 +291,62 @@ client.on('messageCreate', async message => {
         } catch (err) {
             console.error(err);
             message.channel.send("Nie udało się nadać timeouta.");
+        }
+    }
+
+    // Komenda ?kick – wyrzuca użytkownika z serwera z opcjonalnym powodem
+    if (message.content.startsWith('?kick')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
+            return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
+        
+        const args = message.content.split(' ');
+        const user = message.mentions.members.first();
+        if (!user) return message.reply("Musisz oznaczyć użytkownika!");
+
+        // Pobieramy powód, jeśli został podany, lub ustawiamy domyślnie "Brak powodu"
+        const reason = args.slice(2).join(' ') || "Brak powodu";
+
+        try {
+            await user.kick(reason);
+            const kickEmbed = new EmbedBuilder()
+                .setColor(0xFFA500)
+                .setTitle(`Wyrzucenie użytkownika`)
+                .setDescription(`${user} został wyrzucony z serwera.\nPowód: ${reason}`)
+                .setFooter({ text: "© tajgerek" })
+                .setTimestamp();
+            message.channel.send({ embeds: [kickEmbed] });
+        } catch (err) {
+            console.error(err);
+            message.channel.send("Nie udało się wyrzucić użytkownika.");
+        }
+    }
+
+    // Komenda ?ban – banuje użytkownika z serwera z opcjonalnym powodem
+    if (message.content.startsWith('?ban')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+            return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
+        
+        const args = message.content.split(' ');
+        const user = message.mentions.members.first();
+        if (!user) return message.reply("Musisz oznaczyć użytkownika!");
+
+        // Pobieramy powód, jeśli został podany, lub ustawiamy domyślnie "Brak powodu"
+        const reason = args.slice(2).join(' ') || "Brak powodu";
+
+        try {
+            await user.ban({ reason: reason });
+            const banEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle(`Ban użytkownika`)
+                .setDescription(`${user} został zbanowany z serwera.\nPowód: ${reason}`)
+                .setFooter({ text: "© tajgerek" })
+                .setTimestamp();
+            message.channel.send({ embeds: [banEmbed] });
+        } catch (err) {
+            console.error(err);
+            message.channel.send("Nie udało się zbanować użytkownika.");
         }
     }
 
