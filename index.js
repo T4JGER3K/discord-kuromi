@@ -53,6 +53,7 @@ client.on('messageCreate', async message => {
             { name: '?warn @użytkownik [powód]', value: 'Nadaje warn użytkownikowi. Jeśli powód nie zostanie podany, używany jest "Brak powodu". W zależności od liczby warnów mogą być nakładane kary.', inline: false },
             { name: '?warn list @użytkownik', value: 'Wyświetla listę warnów, powodów oraz timeoutów dla wskazanego użytkownika.', inline: false },
             { name: '?remove warn @użytkownik [liczba]', value: 'Odbiera warny użytkownikowi. Jeśli liczba nie zostanie podana, domyślnie odbiera 1 warn.', inline: false },
+            { name: '?timeout @użytkownik <czas>', value: 'Nadaje timeout użytkownikowi. Przykład: ?timeout @nazwa 10s (10 sekund), 5m (5 minut), 2h (2 godziny).', inline: false },
             { name: '?taryfikator', value: 'Wyświetla taryfikator kar, czyli jaka kara przypada na daną liczbę warnów.', inline: false },
             { name: '?help', value: 'Wyświetla tę pomoc.', inline: false }
         );
@@ -60,7 +61,7 @@ client.on('messageCreate', async message => {
         return message.channel.send({ embeds: [helpEmbed] });
     }
 
-    // Komenda ?warn @nazwa powód
+    // Komenda ?warn @nazwa [powód]
     if (message.content.startsWith('?warn') && !message.content.includes('list')) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
             return message.reply("Nie masz uprawnień do używania tej komendy.");
@@ -236,6 +237,59 @@ client.on('messageCreate', async message => {
             .setTimestamp();
 
         message.channel.send({ embeds: [removeEmbed] });
+    }
+
+    // Komenda ?timeout – nadaje timeout użytkownikowi na określony czas
+    if (message.content.startsWith('?timeout')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
+
+        const args = message.content.split(' ');
+        const user = message.mentions.members.first();
+        if (!user) return message.reply("Musisz oznaczyć użytkownika!");
+
+        // Spodziewamy się, że trzeci argument to czas w formacie liczba+jednostka (s, m, h)
+        const timeArg = args[2];
+        if (!timeArg) return message.reply("Podaj czas timeoutu (np. 10s, 5m, 2h)!");
+
+        // Wydzielamy liczbę i jednostkę
+        const unit = timeArg.slice(-1);
+        const amountStr = timeArg.slice(0, -1);
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount < 1) {
+            return message.reply("Podaj poprawną liczbę dla timeoutu.");
+        }
+
+        let multiplier;
+        if (unit === 's') {
+            multiplier = 1000;
+        } else if (unit === 'm') {
+            multiplier = 60000;
+        } else if (unit === 'h') {
+            multiplier = 3600000;
+        } else {
+            return message.reply("Podaj poprawną jednostkę czasu: s (sekundy), m (minuty), h (godziny).");
+        }
+
+        const duration = amount * multiplier;
+
+        try {
+            await user.timeout(duration, `Timeout na ${timeArg}`);
+            const timeoutStart = Date.now();
+            const timeoutEnd = timeoutStart + duration;
+            db.prepare("INSERT INTO timeouts (userId, startDate, endDate) VALUES (?, ?, ?)").run(user.id, timeoutStart, timeoutEnd);
+            const timeoutEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle(`Timeout dla ${user.user.tag}`)
+                .setDescription(`${user} otrzymał timeout na ${timeArg}!`)
+                .setFooter({ text: "© tajgerek" })
+                .setTimestamp();
+            message.channel.send({ embeds: [timeoutEmbed] });
+        } catch (err) {
+            console.error(err);
+            message.channel.send("Nie udało się nadać timeouta.");
+        }
     }
 
     // Komenda ?warn list – pobiera dane z bazy, dzięki czemu dane pozostają po restarcie bota
