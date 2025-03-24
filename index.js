@@ -52,6 +52,7 @@ client.on('messageCreate', async message => {
         helpEmbed.addFields(
             { name: '?warn @użytkownik [powód]', value: 'Nadaje warn użytkownikowi. Jeśli powód nie zostanie podany, używany jest "Brak powodu". W zależności od liczby warnów mogą być nakładane kary.', inline: false },
             { name: '?warn list @użytkownik', value: 'Wyświetla listę warnów, powodów oraz timeoutów dla wskazanego użytkownika.', inline: false },
+            { name: '?remove warn @użytkownik [liczba]', value: 'Odbiera warny użytkownikowi. Jeśli liczba nie zostanie podana, domyślnie odbiera 1 warn.', inline: false },
             { name: '?taryfikator', value: 'Wyświetla taryfikator kar, czyli jaka kara przypada na daną liczbę warnów.', inline: false },
             { name: '?help', value: 'Wyświetla tę pomoc.', inline: false }
         );
@@ -184,6 +185,57 @@ client.on('messageCreate', async message => {
                 message.channel.send("Nie udało się zbanować użytkownika.");
             }
         }
+    }
+
+    // Komenda ?remove warn – usuwa warny użytkownikowi
+    if (message.content.startsWith('?remove warn')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            return message.reply("Nie masz uprawnień do używania tej komendy.");
+        }
+
+        const args = message.content.split(' ');
+        const user = message.mentions.members.first();
+        if (!user) return message.reply("Musisz oznaczyć użytkownika!");
+
+        // Opcjonalnie: liczba warnów do usunięcia, domyślnie 1
+        let removeCount = parseInt(args[2]);
+        if (isNaN(removeCount) || removeCount < 1) {
+            removeCount = 1;
+        }
+
+        // Pobranie aktualnej liczby warnów
+        let data = db.prepare("SELECT count FROM warnings WHERE userId = ?").get(user.id);
+        let currentWarns = data ? data.count : 0;
+
+        if (currentWarns === 0) {
+            return message.reply(`${user} nie ma żadnych warnów.`);
+        }
+
+        // Obliczamy nową liczbę warnów
+        let newWarns = currentWarns - removeCount;
+        if (newWarns < 0) newWarns = 0;
+
+        // Aktualizacja liczby warnów w bazie danych
+        db.prepare("INSERT INTO warnings (userId, count) VALUES (?, ?) ON CONFLICT(userId) DO UPDATE SET count = ?")
+            .run(user.id, newWarns, newWarns);
+
+        // Usuwamy ostatnie rekordy z tabeli reasons, odpowiadające usuwanym warnom
+        const reasons = db.prepare("SELECT rowid, date FROM reasons WHERE userId = ? ORDER BY date DESC").all(user.id);
+        let removed = 0;
+        for (let reason of reasons) {
+            if (removed >= removeCount) break;
+            db.prepare("DELETE FROM reasons WHERE rowid = ?").run(reason.rowid);
+            removed++;
+        }
+
+        const removeEmbed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle(`Usunięto warny dla ${user.user.tag}`)
+            .setDescription(`Usunięto ${removed} ${getWarnDeclension(removed)}.\nAktualna liczba warnów: ${newWarns}`)
+            .setFooter({ text: "© tajgerek" })
+            .setTimestamp();
+
+        message.channel.send({ embeds: [removeEmbed] });
     }
 
     // Komenda ?warn list – pobiera dane z bazy, dzięki czemu dane pozostają po restarcie bota
